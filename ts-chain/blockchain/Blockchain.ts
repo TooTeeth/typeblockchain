@@ -8,7 +8,7 @@ class Blockchain {
   }
 
   private createGenesisBlock(): Block {
-    return new Block(0, new Date().toISOString(), [], "");
+    return new Block(0, [], "");
   }
 
   getLatestBlock(): Block {
