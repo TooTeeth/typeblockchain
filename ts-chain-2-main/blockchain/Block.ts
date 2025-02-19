@@ -1,7 +1,16 @@
 import * as crypto from "crypto";
 import Transaction from "./Transaction";
 
-class Block {
+export interface BlockData {
+  index: number;
+  timestamp: string;
+  transactions: Transaction[];
+  previousHash: string;
+  hash: string;
+  nonce: number;
+}
+
+class Block implements BlockData {
   index: number;
   timestamp: string;
   transactions: Transaction[];
@@ -9,29 +18,19 @@ class Block {
   hash: string;
   nonce: number;
 
-  constructor(
-    index: number,
-    transactions: Transaction[],
-    previousHash: string = ""
-  ) {
+  constructor(index: number, transactions: Transaction[], previousHash: string = "", hash: string = "", nonce: number = 0, timestamp: string = new Date().toISOString()) {
     this.index = index;
-    this.timestamp = new Date().toISOString();
     this.transactions = transactions;
     this.previousHash = previousHash;
-    this.nonce = 0;
-    this.hash = this.calculateHash();
+    this.nonce = nonce;
+    this.timestamp = timestamp;
+    this.hash = hash;
   }
 
   calculateHash(): string {
     return crypto
       .createHash("sha256")
-      .update(
-        this.index +
-          this.previousHash +
-          this.timestamp +
-          JSON.stringify(this.transactions) +
-          this.nonce
-      )
+      .update(this.index + this.previousHash + this.timestamp + JSON.stringify(this.transactions) + this.nonce)
       .digest("hex");
   }
 
@@ -44,6 +43,11 @@ class Block {
     }
 
     console.log(`Block mined: ${this.hash}`);
+  }
+  static fromJSON(data: BlockData): Block {
+    const transactions = data.transactions.map((tx: any) => Transaction.fromJSON(tx));
+
+    return new Block(data.index, transactions, data.previousHash, data.hash, data.nonce, data.timestamp);
   }
 }
 

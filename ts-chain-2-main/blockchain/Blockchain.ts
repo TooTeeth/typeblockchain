@@ -1,17 +1,24 @@
 import Block from "./Block";
 import Transaction from "./Transaction";
 
-class Blockchain {
+export interface BlockchainData {
   chain: Block[];
   difficulty: number;
   transactionPool: Transaction[];
   miningReward: number;
+}
 
-  constructor() {
-    this.chain = [this.createGenesisBlock()];
-    this.difficulty = 3;
-    this.transactionPool = [];
-    this.miningReward = 50;
+class Blockchain implements BlockchainData {
+  chain: Block[]; //블록은 여러개이므로 배열 형식
+  difficulty: number;
+  transactionPool: Transaction[];
+  miningReward: number;
+
+  constructor(chain: Block[] = [this.createGenesisBlock()], difficulty: number = 3, transactionPool: Transaction[] = [], miningReward: number = 50) {
+    this.chain = chain;
+    this.difficulty = difficulty;
+    this.transactionPool = transactionPool;
+    this.miningReward = miningReward;
   }
 
   private createGenesisBlock(): Block {
@@ -23,30 +30,37 @@ class Blockchain {
   }
 
   addTransaction(transaction: Transaction): void {
+    if (transaction.sender !== null) {
+      const balance = this.getBalanceOfAddress(transaction.sender);
+      if (balance < transaction.amount) {
+        throw new Error("Insufficient funds for transaction.");
+      }
+    }
     this.transactionPool.push(transaction);
   }
 
   minePendingTransactions(minerAddress: string): void {
-    const rewardTransaction = new Transaction(
-      null,
-      minerAddress,
-      this.miningReward
-    );
+    const rewardTransaction = new Transaction(null, minerAddress, this.miningReward);
     this.transactionPool.push(rewardTransaction);
 
-    const newBlock = new Block(
-      this.chain.length,
-      this.transactionPool,
-      this.getLatestBlock().hash
-    );
+    const startTime = Date.now();
+
+    const newBlock = new Block(this.chain.length, this.transactionPool, this.getLatestBlock().hash); //this.chain.length가 블록의 번호를 부여해준다.
 
     console.log("Mining new block...");
     newBlock.mineBlock(this.difficulty);
 
     this.chain.push(newBlock);
+
+    //난이도 조절
+    const endTime = Date.now();
+    const timeTaken = endTime - startTime;
+    this.difficulty = this.adjustDifficulty(this.difficulty, timeTaken);
+
     this.transactionPool = [];
   }
 
+  //UTXO 방식 - 보낸거, 받은 거 다 더 함
   getBalanceOfAddress(address: string): number {
     let balance = 0;
 
@@ -71,14 +85,34 @@ class Blockchain {
       }
 
       if (currentBlock.previousHash !== previousHash.hash) {
-        console.log(
-          `Blcok ${currentBlock.index} is not linked to the previous block.`
-        );
+        console.log(`Blcok ${currentBlock.index} is not linked to the previous block.`);
         return false;
+      }
+      for (const tx of currentBlock.transactions) {
+        if (!tx.isValid()) return false;
       }
     }
 
     return true;
+  }
+
+  adjustDifficulty(currentDifficulty: number, timeTaken: number): number {
+    const targetTime = 10000;
+    if (timeTaken < targetTime / 2) {
+      return currentDifficulty + 1;
+    } else if (timeTaken > targetTime * 2) {
+      return currentDifficulty - 1;
+    }
+    return currentDifficulty;
+  }
+
+  static fromJSON(data: BlockchainData): Blockchain {
+    const blockchain = new Blockchain();
+    blockchain.chain = data.chain.map((blockData: any) => Block.fromJSON(blockData));
+    blockchain.difficulty = data.difficulty;
+    blockchain.transactionPool = data.transactionPool ? data.transactionPool.map((tx: any) => Transaction.fromJSON(tx)) : [];
+    blockchain.miningReward = data.miningReward;
+    return blockchain;
   }
 }
 
